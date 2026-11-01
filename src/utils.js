@@ -3,7 +3,8 @@ import * as CANNON from 'cannon-es';
 
 // texture loader
 const loader = new THREE.TextureLoader();
-
+import { scale_height } from './main.js';
+ 
 export function getScene() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color( 0x333333 );
@@ -38,15 +39,15 @@ export function setEnvironment(scene) {
     scene.add(ambientLight);
     
     const pointLight = new THREE.DirectionalLight('white', 4);
-    pointLight.position.set(15, 20, 0);
+    pointLight.position.set(15, 8, 0);
     scene.add(pointLight);
     
     const pointLight2 = new THREE.DirectionalLight('white', 4);
-    pointLight2.position.set(-50, 20, -100);
+    pointLight2.position.set(-70, 8, -85);
     scene.add(pointLight2);
 
     const pointLight3 = new THREE.DirectionalLight('white', 4);
-    pointLight3.position.set(-100, 20, 100);
+    pointLight3.position.set(-70, 8, 30);
     scene.add(pointLight3);
     
     const axesHelper = new THREE.AxesHelper(8);
@@ -64,41 +65,99 @@ export function setEnvironment(scene) {
     
 }
 
-export function updateGeometryAndGroundBody(geometry, params, noise, groundBody, terrain) {
-  const position = geometry.attributes.position;
-  const { amplitude = 1, frequency } = params;
-  const {x: fx, z: fz} = frequency;
-
-  for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i);
-    const z = position.getZ(i);
+export function updateTerrainAndGroundBody(geometry, groundBody, terrain) {
+  const imageLoader = new THREE.ImageLoader();
+  imageLoader.load('height.png', function (image) {
+    // Crea un canvas temporaneo e disegna l'immagine
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
     
-    let y = noise(x * fx * 0.01, z * fz * 0.01) * amplitude;
-    if (params.octaves >=2 ) {
-      y += noise(x * fx * 0.01 * 2, z * fz * 0.01 * 2) * amplitude * 0.5;
-    }
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    
+    // Ottieni l'array dei pixel (formato RGBA: 4 valori consecutivi per pixel)
+    const imgData = context.getImageData(0, 0, image.width, image.height).data;
 
-    if (params.octaves >=3 ) {
-      y += noise(x * fx * 0.01 * 4, z * fz * 0.01 * 4) * amplitude * 0.25;
-    }
-    position.setY(i, y);
+    // Ora puoi calcolare le altezze dei vertici (passo 2...)
+    applyHeightsAndColorsToGeometry(geometry, imgData, image.width, image.height, groundBody, terrain);
+  });
+}
+
+// Load height map and apply color to geometry based on height
+function applyHeightsAndColorsToGeometry(geometry, imgData, textureWidth, textureHeight, groundBody, terrain) {
+  const positionAttribute = geometry.getAttribute('position');
+  const uvAttribute = geometry.getAttribute('uv');
+  
+  // const displacementScale = 10; 
+  const heightThreshold = 0.1; // La soglia oltre la quale il vertice cambia colore
+
+  // Crea un array per contenere i dati RGB di ogni vertice (3 componenti per vertice: R, G, B)
+  const colors = new Float32Array(positionAttribute.count * 3);
+
+  // Definiamo i due colori usando l'oggetto Color di Three.js
+  const lowColor = new THREE.Color('#070707'); 
+  const highColor = new THREE.Color('lightgrey'); 
+
+  for (let i = 0; i < positionAttribute.count; i++) {
+    // 1. Calcolo dell'altezza (identico al passo precedente)
+    const u = uvAttribute.getX(i);
+    const v = uvAttribute.getY(i);
+    const x = Math.min(Math.floor(u * textureWidth), textureWidth - 1);
+    const y = Math.min(Math.floor((1 - v) * textureHeight), textureHeight - 1); 
+    const pixelIndex = (y * textureWidth + x) * 4;
+    
+    const height = (imgData[pixelIndex] / 255);
+      
+    // Applichiamo l'altezza sull'asse Z (o Y a seconda dell'orientamento)
+    
+    positionAttribute.setY(i, height*scale_height); // Applica la scala di altezza
+    console.log(scale_height)
+
+    // 2. Controllo della soglia di altezza e assegnazione del colore
+    if (height < heightThreshold) {
+      // 3. Inserisci i componenti R, G, B nell'array dei colori alla posizione corretta
+      colors[i * 3]     = lowColor.r; // Canale Rosso
+      colors[i * 3 + 1] = lowColor.g; // Canale Verde
+      colors[i * 3 + 2] = lowColor.b; // Canale Blu
+    } else {
+      colors[i * 3]     = highColor.r; // Canale Rosso
+      colors[i * 3 + 1] = highColor.g; // Canale Verde
+      colors[i * 3 + 2] = highColor.b; // Canale Blu
+    } 
   }
-  geometry.computeVertexNormals();
-  position.needsUpdate = true;
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.attributes.color.needsUpdate = true;
 
-  // create Cannon Trimesh for physics
+  // Aggiungi l'attributo 'color' alla geometria
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  // Comunica a Three.js i cambiamenti
+  positionAttribute.needsUpdate = true;
+  geometry.getAttribute('color').needsUpdate = true;
+  geometry.computeVertexNormals();
+  positionAttribute.needsUpdate = true;
+
+  createTrimesh(geometry, groundBody, terrain);
+}
+
+function createTrimesh(geometry, groundBody, terrain) {
     const vertices = geometry.attributes.position.array;
     const indices = geometry.index.array;
-  
+
     const trimeshShape = new CANNON.Trimesh(vertices, indices);
     while (groundBody.shapes.length > 0) {
-      groundBody.removeShape(groundBody.shapes[0]);
+        groundBody.removeShape(groundBody.shapes[0]);
     }
     groundBody.addShape(trimeshShape);
     groundBody.position.copy(terrain.position);
     groundBody.quaternion.copy(terrain.quaternion);
-    
 }
+
+
+
+
+
 
 class ThirdPersonCamera {
     constructor(camera, target) {
