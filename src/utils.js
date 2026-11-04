@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { scale_height } from './main.js';
+
 
 // texture loader
 const loader = new THREE.TextureLoader();
-import { scale_height } from './main.js';
- 
+
 export function getScene() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color( 0x333333 );
@@ -39,35 +41,117 @@ export function setEnvironment(scene) {
     scene.add(ambientLight);
     
     const pointLight = new THREE.DirectionalLight('white', 4);
-    pointLight.position.set(15, 8, 0);
+    pointLight.position.set(15, 20, 0);
     scene.add(pointLight);
     
     const pointLight2 = new THREE.DirectionalLight('white', 4);
-    pointLight2.position.set(-70, 8, -85);
+    pointLight2.position.set(-70, 20, -85);
     scene.add(pointLight2);
 
     const pointLight3 = new THREE.DirectionalLight('white', 4);
-    pointLight3.position.set(-70, 8, 30);
+    pointLight3.position.set(-70, 20, 30);
     scene.add(pointLight3);
     
     const axesHelper = new THREE.AxesHelper(8);
     scene.add(axesHelper);
 
-    const helper = new THREE.PointLightHelper(pointLight, 5); // 5 is the sphere size
-    scene.add(helper);
-    const helper2 = new THREE.PointLightHelper(pointLight2, 5);
-    scene.add(helper2);
+    // const helper = new THREE.PointLightHelper(pointLight, 5); // 5 is the sphere size
+    // scene.add(helper);
+    // const helper2 = new THREE.PointLightHelper(pointLight2, 5);
+    // scene.add(helper2);
     
-    const helper3 = new THREE.PointLightHelper(pointLight3, 5);
-    scene.add(helper3);
+    // const helper3 = new THREE.PointLightHelper(pointLight3, 5);
+    // scene.add(helper3);
     
-    return { helper, helper2, helper3 };
+    return {};
     
 }
 
-export function updateTerrainAndGroundBody(geometry, groundBody, terrain) {
+export async function getCarMeshes(scene) {
+    // --- Load the car model ---
+    let listWheelMeshes = [];
+    let chassisMesh = new THREE.Object3D()
+    let wheelFLMesh = new THREE.Object3D()
+    let wheelFRMesh = new THREE.Object3D()
+    let wheelBLMesh = new THREE.Object3D()
+    let wheelBRMesh = new THREE.Object3D()
+    const loader = new GLTFLoader();
+    await loader.loadAsync('/myTotalCar_freeWheel.glb').then((gltf) => {
+        const carModel = gltf.scene;
+        scene.add(carModel);
+
+        chassisMesh = carModel.getObjectByName('BodyCar');
+        let chassisMeshMat = carModel.children[0].children[0].material;
+        chassisMeshMat.metalness = 0.9;
+        chassisMeshMat.roughness = 0.0;
+        chassisMesh.material = chassisMeshMat;
+
+        wheelFLMesh = carModel.getObjectByName('Wheel1');
+        wheelFRMesh = carModel.getObjectByName('Wheel2');
+        wheelBLMesh = carModel.getObjectByName('Wheel3');
+        wheelBRMesh = carModel.getObjectByName('Wheel4');
+
+        listWheelMeshes.push(wheelFLMesh, wheelFRMesh, wheelBLMesh, wheelBRMesh);
+    });
+
+    return [chassisMesh, listWheelMeshes];
+}
+
+export function getWheelBodies(vehicle) {
+    
+  // create four wheels
+    const mass = 1;
+    const axisWidth = 4 
+    const wheelShape = new CANNON.Sphere(0.3);
+    const wheelMaterial = new CANNON.Material('wheel');
+    const down = new CANNON.Vec3(0, -1, 0);
+    
+    const wheelBody1 = new CANNON.Body({ mass, material: wheelMaterial });
+    wheelBody1.addShape(wheelShape);
+    wheelBody1.angularDamping = 0.8;
+    vehicle.addWheel({
+      body: wheelBody1,
+      position: new CANNON.Vec3(1.28, -0.48, -axisWidth/4.3),
+      axis: new CANNON.Vec3(0, 0, 1),
+      direction: down,
+    });
+    
+    const wheelBody2 = new CANNON.Body({ mass, material: wheelMaterial });
+    wheelBody2.addShape(wheelShape);
+    wheelBody2.angularDamping = 0.8;
+    vehicle.addWheel({
+      body: wheelBody2,
+      position: new CANNON.Vec3(1.28, -0.48, axisWidth/4.5),
+      axis: new CANNON.Vec3(0, 0, 1),
+      direction: down,
+    });
+    
+    const wheelBody3 = new CANNON.Body({ mass, material: wheelMaterial });
+    wheelBody3.addShape(wheelShape);
+    wheelBody3.angularDamping = 0.8;
+    vehicle.addWheel({
+      body: wheelBody3,
+      position: new CANNON.Vec3(-1.25, -0.48, -axisWidth/4.3),
+      axis: new CANNON.Vec3(0, 0, 1),
+      direction: down,
+    });
+    
+    const wheelBody4 = new CANNON.Body({ mass, material: wheelMaterial });
+    wheelBody4.addShape(wheelShape);
+    wheelBody4.angularDamping = 0.8;
+    vehicle.addWheel({
+      body: wheelBody4,
+      position: new CANNON.Vec3(-1.25, -0.48, axisWidth/4.4),
+      axis: new CANNON.Vec3(0, 0, 1),
+      direction: down,
+    });
+
+    return [wheelBody1, wheelBody2, wheelBody3, wheelBody4];
+}
+
+export function updateTerrainAndGroundBody(geometry, groundBody, terrain, heightmap_name) {
   const imageLoader = new THREE.ImageLoader();
-  imageLoader.load('height.png', function (image) {
+  imageLoader.load(heightmap_name, function (image) {
     // Crea un canvas temporaneo e disegna l'immagine
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
@@ -82,6 +166,7 @@ export function updateTerrainAndGroundBody(geometry, groundBody, terrain) {
     // Ora puoi calcolare le altezze dei vertici (passo 2...)
     applyHeightsAndColorsToGeometry(geometry, imgData, image.width, image.height, groundBody, terrain);
   });
+
 }
 
 // Load height map and apply color to geometry based on height
@@ -96,7 +181,7 @@ function applyHeightsAndColorsToGeometry(geometry, imgData, textureWidth, textur
   const colors = new Float32Array(positionAttribute.count * 3);
 
   // Definiamo i due colori usando l'oggetto Color di Three.js
-  const lowColor = new THREE.Color('#070707'); 
+  const lowColor = new THREE.Color('black'); 
   const highColor = new THREE.Color('lightgrey'); 
 
   for (let i = 0; i < positionAttribute.count; i++) {
@@ -112,7 +197,6 @@ function applyHeightsAndColorsToGeometry(geometry, imgData, textureWidth, textur
     // Applichiamo l'altezza sull'asse Z (o Y a seconda dell'orientamento)
     
     positionAttribute.setY(i, height*scale_height); // Applica la scala di altezza
-    console.log(scale_height)
 
     // 2. Controllo della soglia di altezza e assegnazione del colore
     if (height < heightThreshold) {
@@ -154,18 +238,13 @@ function createTrimesh(geometry, groundBody, terrain) {
     groundBody.quaternion.copy(terrain.quaternion);
 }
 
-
-
-
-
-
 class ThirdPersonCamera {
     constructor(camera, target) {
         this._camera = camera;
         this._target = target; // Il mesh del tuo giocatore/oggetto
 
         // Offset ideale rispetto alla posizione del giocatore (Dietro, Sopra, Di lato)
-        this._idealOffset = new THREE.Vector3(-15, 5, 1);
+        this._idealOffset = new THREE.Vector3(-5, 5, 1);
         // Punto ideale dove guardare (Leggermente sopra la testa del giocatore)
         this._idealLookAt = new THREE.Vector3(5, 1, 1);
 
@@ -193,7 +272,7 @@ class ThirdPersonCamera {
     }
 
     // Da chiamare all'interno del loop di rendering (requestAnimationFrame)
-    update(timeElapsed) {
+    update() {
         const targetIdealPosition = this._CalculateIdealOffset();
         const targetIdealLookAt = this._CalculateIdealLookAt();
 
@@ -202,8 +281,8 @@ class ThirdPersonCamera {
         // const t = 1.0 - Math.exp(-4.0 * timeElapsed);
 
         // Interpola linearmente dalla posizione attuale a quella ideale
-        this._currentPosition.lerp(targetIdealPosition, 0.02);
-        this._currentLookAt.lerp(targetIdealLookAt, 0.02);
+        this._currentPosition.lerp(targetIdealPosition, 0.05);
+        this._currentLookAt.lerp(targetIdealLookAt, 0.05);
 
         // Aggiorna la telecamera di Three.js
         this._camera.position.copy(this._currentPosition);

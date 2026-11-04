@@ -8,9 +8,13 @@
   </head>
   <body>
     <div class="container">
-    <div>
-      <canvas id="myCanvas"></canvas>
-    </div>
+      <div>
+        <canvas id="myCanvas"></canvas>
+      </div>
+      <div class="spazio-sinistro" style="position: absolute; z-index: 1;">
+        <textarea class="invisible" id="carData" name="area" cols="25"></textarea>
+      </div>
+      <button class="floating-btn">+</button>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

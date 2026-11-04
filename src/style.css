@@ -6,3 +6,58 @@ body {
 .container {
   display: flex;
 }
+
+.spazio-sinistro {
+  margin: 0;
+  height: 100%;
+}
+
+textarea {  
+  height: 100%;
+  line-height: 1.5;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: rgb(189, 233, 32);
+  bottom: 0;
+}
+
+.invisible::-webkit-scrollbar {
+  display: none;
+}
+
+/* Stili per il pulsante circolare */
+.floating-btn {
+    /* Posizionamento fisso in basso al centro */
+    position: fixed;
+    bottom: 20px;       /* Distanza dal bordo inferiore */
+    left: 50%;          /* Centra rispetto al bordo sinistro */
+    transform: translateX(-50%); /* Riassegna il centro esatto dell'elemento */
+    
+    /* Creazione del cerchio perfetto */
+    width: 100px;        /* Larghezza del pulsante */
+    height: 100px;       /* Altezza identica alla larghezza */
+    border-radius: 50%; /* Rende l'elemento circolare */
+    
+    /* Stile estetico (personalizzabile) */
+    background-color: transparent;  /* #00tBFF Colore di sfondo del pulsante */
+    color: white;
+    border: solid 2px #ffffff;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+    
+    /* Allineamento del testo/icona al centro */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* Effetto transizione al passaggio del mouse */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+/* Effetto hover (passaggio del mouse) */
+.floating-btn:hover {
+    background-color: transparent;
+    transform: translateX(-50%) scale(1.05); /* Mantiene la centratura e si ingrandisce leggermente */
+}
